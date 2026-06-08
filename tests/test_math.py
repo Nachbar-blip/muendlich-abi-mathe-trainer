@@ -78,6 +78,22 @@ def test_art_ausdruck_exakt_ohne_toleranz():
     assert ok, grund
 
 
+def test_art_ausdruck_float_rauschen_ohne_toleranz():
+    # Code-Review I-1: float-loesung 0.3 vs. expr 0.1+0.2 (= 0.300...0004)
+    # darf NICHT faelschlich als Fehler gelten (kleine numerische Reserve).
+    item = {"loesung": 0.3, "check": {"art": "ausdruck", "expr": "0.1 + 0.2"}}
+    ok, grund = pruefe_item(item)
+    assert ok, grund
+
+
+def test_art_ausdruck_echte_abweichung_ohne_toleranz_failt():
+    # Gegenprobe zu I-1: echte Abweichung (0.3 vs 0.31) bleibt ein Fehler,
+    # die numerische Reserve ueberdeckt sie nicht.
+    item = {"loesung": 0.3, "check": {"art": "ausdruck", "expr": "0.31"}}
+    ok, grund = pruefe_item(item)
+    assert not ok and grund
+
+
 def test_art_ausdruck_erkennt_abweichung():
     # Negativkontrolle: falsche loesung ausserhalb der Toleranz -> Fehler.
     item = {

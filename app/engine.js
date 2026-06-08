@@ -95,8 +95,8 @@
   // Wortgrenzen/Lookbehinds verhindern Substring-Falschtreffer (z. B. "Hessen",
   // "...koeln(", "the^2"). Muster sind bewusst spezifisch fuer GK-Verbote.
   const SCOPE_VERBOTE = [
-    'f_[a-z]\\(',                 // Funktionsschar f_a(...), f_k(...)
-    'f_\\{[a-z]\\}',              // LaTeX-Schar f_{a}
+    '[a-z]_[a-z]\\(',             // Funktionsschar f_a(...), g_k(...), h_t(...)
+    '[a-z]_\\{[a-z]\\}',          // LaTeX-Schar f_{a}, g_{k}
     '(?<![a-zäöüß])e\\^',         // e-Funktion e^... (nicht mitten im Wort)
     '\\\\ln',                     // LaTeX \ln
     '(?<![a-zäöüß])ln\\(',        // ln( (nicht als Wortende wie "koeln(")

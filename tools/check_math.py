@@ -13,6 +13,11 @@ nachrechnet. Drei art-Werte werden unterstuetzt (klar dispatcht, erweiterbar):
   {"art":"vektor","expr":"<Matrix/3er-Vektor>","erwartet":[a,b,c]}
       -> komponentenweise gleich (Toleranz 1e-9).
 
+Mapping der Plan-Operationen auf diese drei generischen arten (fuer Phase-3-Autoren):
+  Nullstellen / Extremstellen / Wendestellen  -> art "menge" (Loesungen von expr==0)
+  Integral / Flaeche / Skalarprodukt / Betrag / Abstand / Funktionswert -> art "ausdruck"
+  Kreuzprodukt / Normalenvektor / Mittelpunkt / Vektorzug -> art "vektor"
+
 pruefe_item(item) -> (bool, str)  — str = Begruendung bei Fehler ("" bei Erfolg).
 """
 from sympy import (  # noqa: F401  (im Eval-Namespace gebraucht)
@@ -22,6 +27,8 @@ from sympy import symbols
 from sympy.core.sympify import SympifyError
 
 VEKTOR_TOLERANZ = 1e-9
+# Numerische Reserve im "exakten" Vergleich gegen Float-Rauschen (z.B. 0.1+0.2 != 0.3).
+EXAKT_TOLERANZ = 1e-9
 
 # Namespace fuer sympify: erlaubt expr-Strings wie
 # "integrate(-5*x**2/4+5,(x,-2,2))" oder "Matrix([1,0,0]).cross(...)".
@@ -70,7 +77,7 @@ def _pruefe_ausdruck(item, check):
         return False, f"loesung nicht auswertbar: {e}"
 
     toleranz = item.get("toleranz", 0)
-    if toleranz and toleranz != 0:
+    if toleranz:
         try:
             diff_betrag = abs(float((wert - soll).evalf()))
         except (TypeError, ValueError) as e:
@@ -82,16 +89,19 @@ def _pruefe_ausdruck(item, check):
             f"(berechnet {wert.evalf()}, erwartet {soll.evalf()})."
         )
 
-    # Toleranz 0 -> exakter/symbolischer Vergleich.
+    # Toleranz 0 -> exakter/symbolischer Vergleich (mit kleiner numerischer
+    # Reserve gegen Float-Rauschen, damit z.B. loesung 0.3 vs. 0.1+0.2 nicht
+    # faelschlich als Fehler gilt).
     diff_ausdruck = (wert - soll)
     try:
         if diff_ausdruck.simplify() == 0:
             return True, ""
     except Exception:  # noqa: BLE001 — simplify kann an exotischen Ausdruecken scheitern
         pass
-    # Fallback: numerische Gleichheit als 0 (exakt) absichern.
+    # Fallback nur ohne freie Symbole: symbolische Ungleichheit NICHT numerisch
+    # ueberdecken (dann ist es ein echter Fehler), aber Float-Rauschen abfangen.
     try:
-        if abs(float(diff_ausdruck.evalf())) == 0:
+        if not diff_ausdruck.free_symbols and abs(float(diff_ausdruck.evalf())) <= EXAKT_TOLERANZ:
             return True, ""
     except (TypeError, ValueError):
         pass
@@ -107,9 +117,11 @@ def _pruefe_menge(check):
         expr = sympify(check["gleichung"], locals={**_NS, check["var"]: var})
     except (SympifyError, SyntaxError, TypeError, ValueError) as e:
         return False, f"gleichung nicht auswertbar: {e}"
-    # Nur reelle Loesungen.
+    # Reelle Loesungen behalten. is_real kann bei verschachtelten Radikalen None
+    # (unentscheidbar) sein -> einschliessen statt still verwerfen; nur sicher
+    # komplexe (is_real is False) ausschliessen.
     loesungen = solve(Eq(expr, 0), var)
-    loesungen = [l for l in loesungen if l.is_real]
+    loesungen = [l for l in loesungen if l.is_real is not False]
     ist = {nsimplify(l) for l in loesungen}
     try:
         soll = {nsimplify(_sympify(e)) for e in check["erwartet"]}

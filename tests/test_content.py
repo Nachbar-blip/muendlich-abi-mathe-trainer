@@ -218,16 +218,33 @@ def _jaccard(a, b):
     return schnitt / vereinigung if vereinigung else 0.0
 
 
-def _alle_fragen():
-    fragen = []
-    for item in CONTENT["rechnen"] + CONTENT["erklaeren"] + CONTENT["verfahren"]:
+def _zu_pruefende_texte():
+    """Felder, die eine KONKRETE Aufgabe tragen und nicht aus den Originalen
+    uebernommen sein duerfen: die rechnen-Aufgabe + ihr Loesungsweg sowie die
+    Simulator-Teilaufgaben (Frage + Erwartungsbild) — denn der Simulator soll
+    laut Plan ausdruecklich *neue*, nie originale Aufgaben stellen.
+
+    BEWUSST AUSGENOMMEN (Nutzer-Vorgabe: "hoechstens aehnliche Fragestellungen"):
+    erklaeren-Fragen/-Erwartungsbilder, verfahren-Schritte und tipp. Das sind
+    generische Konzeptfragen bzw. Standard-Verfahrensbeschreibungen im O-Ton der
+    Pruefung ("Beschreiben Sie die Vorgehensweise ..."), deren Aehnlichkeit zu den
+    Originalen erlaubt und teils gewollt ist; sie reproduzieren keine konkrete
+    Aufgabe (keine spezifischen Zahlen/Funktionen).
+    """
+    texte = []
+    for item in CONTENT["rechnen"]:
         if isinstance(item.get("frage"), str):
-            fragen.append((item["id"], item["frage"]))
+            texte.append((f"rechnen:{item['id']}:frage", item["frage"]))
+        if isinstance(item.get("loesungsweg"), str):
+            texte.append((f"rechnen:{item['id']}:loesungsweg", item["loesungsweg"]))
     for eintrag in CONTENT["simulator"]:
         for i, ta in enumerate(eintrag.get("teilaufgaben", []) or []):
             if isinstance(ta.get("frage"), str):
-                fragen.append((f"{eintrag['id']}#{i}", ta["frage"]))
-    return fragen
+                texte.append((f"simulator:{eintrag['id']}#{i}:frage", ta["frage"]))
+            for j, eb in enumerate(ta.get("erwartungsbild", []) or []):
+                if isinstance(eb, str):
+                    texte.append((f"simulator:{eintrag['id']}#{i}:eb{j}", eb))
+    return texte
 
 
 def _originalabsaetze():
@@ -243,17 +260,21 @@ def _originalabsaetze():
 
 
 def test_kein_original():
-    fragen = _alle_fragen()
+    # HINWEIS (Code-Review I-3): Die Original-.docx sind gitignored. In einem
+    # sauberen CI-Checkout wird dieser Plagiatswaechter uebersprungen — er greift
+    # nur lokal beim Authoring (der relevante Zeitpunkt). "gruen" in CI heisst
+    # hier NICHT "geprueft". Siehe Definition of Done im Plan.
+    texte = _zu_pruefende_texte()
     docx, originale = _originalabsaetze()
     if not docx:
         pytest.skip("Keine Original-.docx vorhanden (gitignored) — Kein-Original-Test uebersprungen.")
-    if not fragen:
+    if not texte:
         # Leerer Inhalt: nichts zu pruefen, aber die Originale wurden geladen.
         return
     treffer = []
-    for ident, frage in fragen:
+    for ident, text in texte:
         for absatz in originale:
-            sim = _jaccard(frage, absatz)
+            sim = _jaccard(text, absatz)
             if sim >= JACCARD_SCHWELLE:
                 treffer.append((ident, round(sim, 3), absatz[:80]))
                 break

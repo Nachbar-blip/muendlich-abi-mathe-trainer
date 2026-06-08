@@ -34,6 +34,10 @@ test("LaTeX-Schar f_{a} verstoesst", () => {
   assert.equal(Engine.verstoesstGegenGK('Die Schar f_{a} hat...'), true);
 });
 
+test("Schar unter anderem Buchstaben g_a( verstoesst (verallgemeinert)", () => {
+  assert.equal(Engine.verstoesstGegenGK('Betrachte g_a(x)=x^2+a.'), true);
+});
+
 test("e^ (ohne Klammer) verstoesst", () => {
   assert.equal(Engine.verstoesstGegenGK('y = e^x'), true);
 });
