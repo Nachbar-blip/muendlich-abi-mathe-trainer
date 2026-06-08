@@ -18,6 +18,9 @@ if str(ROOT) not in sys.path:
 
 from tools.load_content import load_content  # noqa: E402
 
+# Erlaubte AFB-Stufen (kanonisch, ohne Leerzeichen): I, II, III und Kombis (I/II, II/III, ...)
+AFB_MUSTER = r"(I|II|III)(/(I|II|III))*"
+
 CONTENT = load_content(str(ROOT / "app" / "content.js"))
 THEMA_KEYS = {t["key"] for t in CONTENT["themen"]}
 
@@ -87,7 +90,17 @@ def test_simulator_eintrag(eintrag):
         eb = ta.get("erwartungsbild")
         assert isinstance(eb, list) and len(eb) >= 1
         assert all(isinstance(s, str) and s for s in eb)
-        assert ta.get("afb") in ("I", "II", "III")
+        # AFB kanonisch ohne Leerzeichen; Kombis wie "I/II", "II/III" sind in den
+        # Originalprüfungen üblich (I/II 12x, II/III 8x) und müssen zulässig sein.
+        assert re.fullmatch(AFB_MUSTER, ta.get("afb") or ""), \
+            f"ungueltige AFB-Stufe: {ta.get('afb')!r} (erlaubt z.B. I, II, III, I/II, II/III)"
+
+
+def test_afb_format_akzeptiert_kombis_und_lehnt_ungueltiges_ab():
+    for gut in ("I", "II", "III", "I/II", "II/III", "I/II/III"):
+        assert re.fullmatch(AFB_MUSTER, gut), f"{gut} sollte erlaubt sein"
+    for schlecht in ("", "IV", "i", "I / II", "I-II", "II/IV", "1/2"):
+        assert not re.fullmatch(AFB_MUSTER, schlecht), f"{schlecht} sollte abgelehnt werden"
 
 
 def test_ids_eindeutig():
