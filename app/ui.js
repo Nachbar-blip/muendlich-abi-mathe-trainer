@@ -268,6 +268,83 @@
     { id: 'begriff', label: 'Begriff vergessen' }
   ];
 
+  // Fehlertypen speziell für die Simulator-Reflexion (mündliche Prüfung).
+  var SIM_FEHLERTYPEN = [
+    { id: 'verfahren', label: 'Verfahren unklar' },
+    { id: 'begriff', label: 'Begriff vergessen' },
+    { id: 'zeitdruck', label: 'Zeitdruck' },
+    { id: 'rechenfehler', label: 'Rechenfehler' }
+  ];
+
+  // ---------------------------------------------------------------------------
+  // Reine, testbare Logik-Bausteine — Prüfungs-Simulator (Phase 8)
+  // ---------------------------------------------------------------------------
+
+  // Sekunden -> "MM:SS" (zweistellig, nicht-negativ). Reine Funktion.
+  function formatZeit(sekunden) {
+    var s = Math.max(0, Math.floor(Number(sekunden) || 0));
+    var min = Math.floor(s / 60);
+    var sek = s % 60;
+    function zwei(n) { return (n < 10 ? '0' : '') + n; }
+    return zwei(min) + ':' + zwei(sek);
+  }
+
+  // Themen-Schlüssel eines Gebiets (für Empfehlungs-Rücklinks).
+  function themenKeysFuerGebiet(gebiet) {
+    return liste('themen')
+      .filter(function (t) { return t && t.gebiet === gebiet; })
+      .map(function (t) { return t.key; });
+  }
+
+  // Empfehlungs-Themen (volle Thema-Objekte) eines Gebiets — reine Funktion.
+  function empfehlungsThemen(gebiet) {
+    return liste('themen').filter(function (t) {
+      return t && t.gebiet === gebiet;
+    });
+  }
+
+  // Vortrags-Aufgabe (simulator-Item) eines Gebiets oder undefined.
+  function vortragsAufgabeVon(gebiet) {
+    return liste('simulator').filter(function (s) {
+      return s && s.gebiet === gebiet;
+    })[0];
+  }
+
+  // Gesprächsfragen (erklaeren-Items) eines Gebiets, deterministisch gemischt
+  // anhand eines Seeds, auf maxN begrenzt. Reine Funktion (kein Math.random).
+  function waehleGespraechFragen(gebiet, seed, maxN) {
+    var keys = {};
+    liste('themen').forEach(function (t) {
+      if (t && t.gebiet === gebiet) keys[t.key] = true;
+    });
+    var pool = liste('erklaeren').filter(function (e) {
+      return e && keys[e.thema];
+    });
+    var perm = mischeIndizes(pool.length, seed);
+    var grenze = typeof maxN === 'number' && maxN > 0 ? maxN : pool.length;
+    var ausgewaehlt = [];
+    for (var i = 0; i < perm.length && ausgewaehlt.length < grenze; i++) {
+      ausgewaehlt.push(pool[perm[i]]);
+    }
+    return ausgewaehlt;
+  }
+
+  // Eine vollständige Prüfung ziehen — REINE Funktion (r aus [0,1)).
+  // Liefert {teil1Gebiet, teil2Gebiet, vortragsAufgabe, gespraechFragen}.
+  // Die Gebiete sind über Engine.paarung gekoppelt; die Vortragsaufgabe stammt
+  // aus teil1, die Gesprächsfragen aus teil2.
+  function simulatorZiehen(r) {
+    var teil1Gebiet = Engine.zieheGebiet(r);
+    var paar = Engine.paarung(teil1Gebiet);
+    var seed = Math.floor((Number(r) || 0) * 1e9) >>> 0;
+    return {
+      teil1Gebiet: paar.teil1,
+      teil2Gebiet: paar.teil2,
+      vortragsAufgabe: vortragsAufgabeVon(paar.teil1) || null,
+      gespraechFragen: waehleGespraechFragen(paar.teil2, seed, 4)
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // 3) Hash-Routing
   // ---------------------------------------------------------------------------
@@ -377,6 +454,42 @@
       sitzung.signatur = signatur;
     }
     return sitzung;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Timer-Lifecycle (Simulator) — genau EIN Interval pro Sitzung.
+  // Die Interval-ID liegt in sitzung.timerId. timerStop() wird beim
+  // Phasenwechsel, beim Re-Render UND beim Verlassen der Route aufgerufen, damit
+  // kein Timer leakt oder doppelt läuft.
+  // ---------------------------------------------------------------------------
+
+  // Laufenden Timer (falls vorhanden) stoppen und ID löschen.
+  function timerStop() {
+    if (sitzung && sitzung.timerId != null) {
+      clearInterval(sitzung.timerId);
+      sitzung.timerId = null;
+    }
+  }
+
+  // Sekündlichen Countdown starten. Idempotent: ein evtl. laufender Timer wird
+  // zuerst gestoppt, damit ein erneutes render() nie zwei Timer parallel hält.
+  function timerStart() {
+    if (!sitzung) return;
+    timerStop();
+    sitzung.laeuft = true;
+    sitzung.timerId = setInterval(function () {
+      if (!sitzung || !sitzung.laeuft) return;
+      if (sitzung.rest > 0) {
+        sitzung.rest -= 1;
+        // Bei Ablauf den Timer anhalten (kein Hard-Stop der Phase) und neu
+        // rendern, damit der dezente Hinweis erscheint.
+        if (sitzung.rest === 0) {
+          sitzung.laeuft = false;
+          timerStop();
+        }
+        render();
+      }
+    }, 1000);
   }
 
   // ---------------------------------------------------------------------------
@@ -790,6 +903,266 @@
     return html;
   }
 
+  // === Prüfungs-Simulator (Phase 8) ========================================
+  // Zustandsmaschine im sitzung-Objekt:
+  //   phase ∈ "intro" | "vorbereitung" | "vortrag" | "gespraech" | "reflexion"
+  // sitzung trägt zusätzlich: teil1Gebiet, teil2Gebiet, vortragsAufgabe,
+  // gespraechFragen, gespraechIndex, aufgedeckt{}, rest (Sekunden), laeuft,
+  // timerId, fehlertypen{}, notiz, reflexionGespeichert.
+
+  var GEBIET_LABEL = { analysis: 'Analysis', geometrie: 'Geometrie' };
+  var SIM_VORBEREITUNG_SEK = 20 * 60; // 20:00
+  var SIM_VORTRAG_SEK = 10 * 60;      // 10:00
+  var SIM_GESPRAECH_SEK = 10 * 60;    // 10:00
+
+  function gebietLabel(g) { return GEBIET_LABEL[g] || esc(g || ''); }
+
+  // Countdown-Block mit Start/Pause-Button + optionalem Ablauf-Hinweis.
+  function timerHtml(s) {
+    var abgelaufen = s.rest === 0;
+    var klasse = 'sim-timer' + (abgelaufen ? ' sim-timer--aus' : '') +
+      (s.laeuft ? ' sim-timer--laeuft' : '');
+    var btn = abgelaufen ? '' :
+      '<button type="button" class="btn" id="btn-timer">' +
+      (s.laeuft ? 'Pause' : 'Start') + '</button>';
+    var hinweis = abgelaufen
+      ? '<span class="sim-timer-hinweis">' +
+        (s.phase === 'vorbereitung' ? 'Vorbereitungszeit vorbei' : 'Zeit vorbei') +
+        '</span>'
+      : '';
+    return '<div class="' + klasse + '">' +
+      '<span class="sim-uhr" aria-live="polite">' + formatZeit(s.rest) + '</span>' +
+      btn + hinweis +
+      '</div>';
+  }
+
+  // Eine Vortrags-Teilaufgabe rendern. mitErwartung=true blendet das
+  // Erwartungsbild + AFB ein (nur im Vortrag, NIE in der Vorbereitung).
+  function teilaufgabeHtml(ta, pos, mitErwartung, aufgedeckt) {
+    var nr = String.fromCharCode(97 + pos) + ')'; // a) b) c) d)
+    var afb = ta.afb
+      ? '<span class="afb-badge" title="Anforderungsbereich">AFB ' + esc(ta.afb) +
+        '</span>'
+      : '';
+    var html = '<li class="sim-teilaufgabe">' +
+      '<div class="sim-ta-kopf"><span class="sim-ta-nr">' + nr + '</span>' + afb +
+      '</div>' +
+      '<p class="frage">' + esc(ta.frage) + '</p>';
+    if (mitErwartung) {
+      if (aufgedeckt) {
+        var eb = Array.isArray(ta.erwartungsbild) ? ta.erwartungsbild : [];
+        html += hilfeBox('Erwartungsbild (zum Selbstabgleich)',
+          '<ul class="erwartung-liste">' +
+          eb.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') +
+          '</ul>' +
+          (ta.afb ? '<p class="afb-hinweis">Anforderungsbereich: ' +
+            esc(ta.afb) + '</p>' : ''));
+      } else {
+        html += '<div class="aktionen"><button type="button" class="btn" ' +
+          'data-aufdecken="' + pos + '">Erwartungsbild aufdecken</button></div>';
+      }
+    }
+    html += '</li>';
+    return html;
+  }
+
+  // Haupt-View des Simulators — dispatcht nach sitzung.phase.
+  function viewSimulator(state, signatur) {
+    var hatSim = liste('simulator').length > 0;
+    var s = sitzungFuer(signatur, function () {
+      return { phase: 'intro' };
+    });
+
+    var kopf = trainerKopf('#/start', 'Prüfungs-Simulator', null);
+
+    if (s.phase === 'intro' || !s.phase) {
+      var warnung = hatSim ? '' :
+        '<div class="hinweis">Aktuell sind keine Simulator-Aufgaben ' +
+        'hinterlegt — der Simulator ist nicht verfügbar.</div>';
+      return kopf +
+        '<p>Stelle die echte mündliche Prüfung nach: <strong>Teil 1</strong> ' +
+        '(20 min Vorbereitung, 10 min Vortrag — eine vollständige Aufgabe aus ' +
+        'einem Gebiet) und <strong>Teil 2</strong> (10 min Prüfungsgespräch aus ' +
+        'dem anderen Gebiet). Die Gebiete werden gekoppelt gezogen.</p>' +
+        warnung +
+        '<div class="aktionen">' +
+        (hatSim
+          ? '<button type="button" class="btn btn-primaer" id="btn-ziehen">' +
+            'Prüfung ziehen</button>'
+          : '') +
+        '</div>';
+    }
+
+    // Ab hier ist eine Prüfung gezogen. Defensiv: fehlt die Vortragsaufgabe?
+    if (!s.vortragsAufgabe) {
+      return kopf +
+        '<div class="hinweis">Für das Gebiet ' + gebietLabel(s.teil1Gebiet) +
+        ' ist keine Vortrags-Aufgabe hinterlegt.</div>' +
+        '<div class="aktionen"><button type="button" class="btn btn-primaer" ' +
+        'id="btn-neu">Neue Prüfung ziehen</button></div>';
+    }
+
+    var teile = Array.isArray(s.vortragsAufgabe.teilaufgaben)
+      ? s.vortragsAufgabe.teilaufgaben : [];
+
+    if (s.phase === 'vorbereitung') {
+      // WICHTIG (Didaktik): KEINE Erwartungsbilder/Hilfen in der Vorbereitung.
+      var listeVorb = '<ol class="sim-teilaufgaben">' +
+        teile.map(function (ta, i) {
+          return teilaufgabeHtml(ta, i, false, false);
+        }).join('') + '</ol>';
+      return kopf +
+        '<div class="sim-leiste">' +
+        '<span class="sim-phase">Teil 1 · Vorbereitung</span>' +
+        '<span class="sim-gebiet sim-gebiet--' + esc(s.teil1Gebiet) + '">' +
+        gebietLabel(s.teil1Gebiet) + '</span></div>' +
+        timerHtml(s) +
+        '<p class="sim-hinweis">Rechne auf Papier. Die Erwartungsbilder werden ' +
+        'erst im Vortrag sichtbar.</p>' +
+        listeVorb +
+        '<div class="aktionen"><button type="button" class="btn btn-primaer" ' +
+        'id="btn-zu-vortrag">Vortrag starten</button></div>';
+    }
+
+    if (s.phase === 'vortrag') {
+      var listeVor = '<ol class="sim-teilaufgaben">' +
+        teile.map(function (ta, i) {
+          return teilaufgabeHtml(ta, i, true, !!(s.aufgedeckt && s.aufgedeckt[i]));
+        }).join('') + '</ol>';
+      return kopf +
+        '<div class="sim-leiste">' +
+        '<span class="sim-phase">Teil 1 · Vortrag</span>' +
+        '<span class="sim-gebiet sim-gebiet--' + esc(s.teil1Gebiet) + '">' +
+        gebietLabel(s.teil1Gebiet) + '</span></div>' +
+        timerHtml(s) +
+        '<p class="sim-hinweis">Trage deine Lösung laut vor. Decke pro ' +
+        'Teilaufgabe das Erwartungsbild zum Selbstabgleich auf.</p>' +
+        '<div class="audio-box" id="audio-box"></div>' +
+        listeVor +
+        '<div class="aktionen"><button type="button" class="btn btn-primaer" ' +
+        'id="btn-zu-gespraech">Weiter zum Prüfungsgespräch &rarr;</button></div>';
+    }
+
+    if (s.phase === 'gespraech') {
+      var fragen = Array.isArray(s.gespraechFragen) ? s.gespraechFragen : [];
+      if (fragen.length === 0) {
+        return kopf +
+          '<div class="sim-leiste">' +
+          '<span class="sim-phase">Teil 2 · Gespräch</span>' +
+          '<span class="sim-gebiet sim-gebiet--' + esc(s.teil2Gebiet) + '">' +
+          gebietLabel(s.teil2Gebiet) + '</span></div>' +
+          '<div class="hinweis">Für das Gebiet ' + gebietLabel(s.teil2Gebiet) +
+          ' sind keine Gesprächsfragen hinterlegt.</div>' +
+          '<div class="aktionen"><button type="button" class="btn btn-primaer" ' +
+          'id="btn-zu-reflexion">Zur Auswertung &rarr;</button></div>';
+      }
+      var idx = Math.min(s.gespraechIndex || 0, fragen.length - 1);
+      var frage = fragen[idx];
+      var letzte = idx >= fragen.length - 1;
+      var html = kopf +
+        '<div class="sim-leiste">' +
+        '<span class="sim-phase">Teil 2 · Gespräch</span>' +
+        '<span class="sim-gebiet sim-gebiet--' + esc(s.teil2Gebiet) + '">' +
+        gebietLabel(s.teil2Gebiet) + '</span></div>' +
+        timerHtml(s) +
+        '<div class="fortschritt"><span class="schritt-zahl">Frage ' +
+        (idx + 1) + ' / ' + fragen.length + '</span></div>' +
+        '<p class="frage">' + esc(frage.frage) + '</p>' +
+        '<div class="audio-box" id="audio-box"></div>';
+      if (s.aufgedeckt && s.aufgedeckt['g' + idx]) {
+        var eb = Array.isArray(frage.erwartungsbild) ? frage.erwartungsbild : [];
+        html += hilfeBox('Erwartungsbild (zum Selbstabgleich)',
+          '<ul class="erwartung-liste">' +
+          eb.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') +
+          '</ul>');
+        html += '<div class="aktionen"><button type="button" ' +
+          'class="btn btn-primaer" id="btn-naechste-frage">' +
+          (letzte ? 'Zur Auswertung &rarr;' : 'Nächste Frage &rarr;') +
+          '</button></div>';
+      } else {
+        html += '<div class="aktionen"><button type="button" class="btn" ' +
+          'id="btn-frage-aufdecken">Erwartungsbild aufdecken</button></div>';
+      }
+      return html;
+    }
+
+    if (s.phase === 'reflexion') {
+      if (s.reflexionGespeichert) {
+        return viewSimulatorAuswertung(s);
+      }
+      var chips = SIM_FEHLERTYPEN.map(function (f) {
+        var gew = s.fehlertypen && s.fehlertypen[f.id] ? ' gewaehlt' : '';
+        return '<button type="button" class="chip' + gew + '" ' +
+          'data-sim-fehlertyp="' + esc(f.id) + '" aria-pressed="' +
+          (gew ? 'true' : 'false') + '">' + esc(f.label) + '</button>';
+      }).join('');
+      return kopf +
+        '<h2>Abschluss-Reflexion</h2>' +
+        '<p class="sim-hinweis">Teil 1: ' + gebietLabel(s.teil1Gebiet) +
+        ' · Teil 2: ' + gebietLabel(s.teil2Gebiet) + '</p>' +
+        '<p>Wo hakte es? (Mehrfachauswahl möglich)</p>' +
+        '<div class="reflexion-knoepfe">' + chips + '</div>' +
+        '<p>Notiz: Was lief gut? Wo hakte es? (optional)</p>' +
+        '<textarea class="sim-notiz" id="sim-notiz" rows="3" ' +
+        'placeholder="Freitext …">' + esc(s.notiz || '') + '</textarea>' +
+        '<div class="aktionen"><button type="button" class="btn btn-primaer" ' +
+        'id="btn-reflexion-speichern">Auswertung anzeigen</button></div>';
+    }
+
+    // Unbekannte Phase -> zurück auf Intro (defensiv).
+    return kopf +
+      '<div class="aktionen"><button type="button" class="btn btn-primaer" ' +
+      'id="btn-neu">Neue Prüfung ziehen</button></div>';
+  }
+
+  // Auswertungs-Ansicht nach gespeicherter Reflexion: Empfehlungen + Rücklinks.
+  function viewSimulatorAuswertung(s) {
+    var kopf = trainerKopf('#/start', 'Prüfungs-Simulator', null);
+    var gewaehlte = SIM_FEHLERTYPEN.filter(function (f) {
+      return s.fehlertypen && s.fehlertypen[f.id];
+    });
+
+    // Schwachpunkt-Gebiete: wurden Fehlertypen angekreuzt, empfehlen wir beide
+    // geprüften Gebiete; sonst eine knappe Bestätigung. Pro Gebiet Rücklinks
+    // auf Stufe 2/3 der zugehörigen Themen.
+    var blockHtml = function (gebiet) {
+      var themen = empfehlungsThemen(gebiet);
+      if (themen.length === 0) return '';
+      var zeilen = themen.map(function (t) {
+        return '<li class="sim-empf-zeile"><span>' + esc(t.name) + '</span>' +
+          '<span class="sim-empf-links">' +
+          '<a href="#/thema/' + esc(t.key) + '/2">Rechnen (St. 2)</a>' +
+          '<a href="#/thema/' + esc(t.key) + '/3">Erklären (St. 3)</a>' +
+          '</span></li>';
+      }).join('');
+      return '<section class="sim-empf sim-empf--' + esc(gebiet) + '">' +
+        '<h3>' + gebietLabel(gebiet) + '</h3>' +
+        '<ul class="sim-empf-liste">' + zeilen + '</ul></section>';
+    };
+
+    var fehlerText = gewaehlte.length
+      ? '<p>Notierte Schwachpunkte: ' +
+        gewaehlte.map(function (f) { return esc(f.label); }).join(', ') + '.</p>'
+      : '<p>Keine Schwachpunkte angekreuzt — gute Generalprobe!</p>';
+    var notizText = s.notiz
+      ? '<div class="hilfe-box"><h3>Deine Notiz</h3><p>' + esc(s.notiz) +
+        '</p></div>'
+      : '';
+
+    return kopf +
+      '<div class="rueckmeldung rueckmeldung--ok">Prüfung abgeschlossen. ' +
+      'Reflexion gespeichert.</div>' +
+      fehlerText + notizText +
+      '<h2>Empfehlungen zum Weiterüben</h2>' +
+      blockHtml(s.teil1Gebiet) +
+      blockHtml(s.teil2Gebiet) +
+      '<div class="aktionen">' +
+      '<button type="button" class="btn btn-primaer" id="btn-neu">Neue ' +
+      'Prüfung ziehen</button>' +
+      '<a class="btn" href="#/start">Zur Übersicht</a>' +
+      '</div>';
+  }
+
   // Kleiner String-Hash (für deterministische Seeds).
   function hashStr(str) {
     var h = 2166136261;
@@ -831,6 +1204,14 @@
     var signatur = routenSignatur(teile);
     var html;
 
+    // Timer-Lifecycle: verlässt man die Simulator-Route (oder wechselt die
+    // konkrete Signatur), muss ein laufender Countdown gestoppt werden, BEVOR
+    // die Sitzung ersetzt/genullt wird — sonst leakt das Interval.
+    if (sitzung && sitzung.timerId != null &&
+        (view !== 'simulator' || sitzung.signatur !== signatur)) {
+      timerStop();
+    }
+
     switch (view) {
       case 'thema':
         var key = teile[1];
@@ -843,7 +1224,7 @@
         html = viewFaellig(state, signatur);
         break;
       case 'simulator':
-        html = viewStub('Prüfungs-Simulator', null);
+        html = viewSimulator(state, signatur);
         break;
       case 'diagnose':
         html = viewDiagnose(state, signatur);
@@ -879,6 +1260,9 @@
         break;
       case 'faellig':
         bindeFaellig(state);
+        break;
+      case 'simulator':
+        bindeSimulator(state);
         break;
       case 'diagnose':
         bindeDiagnose(state);
@@ -1080,6 +1464,127 @@
     aufKlick('btn-aufdecken', function () { sitzung.aufgedeckt = true; render(); });
     aufKlickAlle('[data-diag]', function (el) {
       naechste(el.getAttribute('data-diag') === 'sicher');
+    });
+  }
+
+  // --- Prüfungs-Simulator (Phase 8) ---
+
+  // In eine Phase mit Countdown wechseln: Timer stoppen, Phase + Restzeit
+  // setzen (pausiert), aufgedeckt-Zustand zurücksetzen, dann rendern.
+  function simWechsel(phase, sekunden) {
+    timerStop();
+    sitzung.phase = phase;
+    sitzung.rest = sekunden;
+    sitzung.laeuft = false;
+    sitzung.aufgedeckt = {};
+    render();
+  }
+
+  function bindeSimulator(state) {
+    if (!sitzung) return;
+    var s = sitzung;
+
+    // Intro: Prüfung ziehen.
+    aufKlick('btn-ziehen', function () {
+      var gezogen = simulatorZiehen(Math.random());
+      s.teil1Gebiet = gezogen.teil1Gebiet;
+      s.teil2Gebiet = gezogen.teil2Gebiet;
+      s.vortragsAufgabe = gezogen.vortragsAufgabe;
+      s.gespraechFragen = gezogen.gespraechFragen;
+      s.gespraechIndex = 0;
+      s.fehlertypen = {};
+      s.notiz = '';
+      s.reflexionGespeichert = false;
+      simWechsel('vorbereitung', SIM_VORBEREITUNG_SEK);
+    });
+
+    // „Neue Prüfung ziehen" (aus Auswertung / Fehlerzustand) -> zurück zu Intro.
+    aufKlick('btn-neu', function () {
+      timerStop();
+      sitzung = { phase: 'intro', signatur: s.signatur };
+      render();
+    });
+
+    // Start/Pause des aktuellen Countdowns.
+    aufKlick('btn-timer', function () {
+      if (s.rest <= 0) return;
+      if (s.laeuft) { s.laeuft = false; timerStop(); }
+      else { timerStart(); }
+      render();
+    });
+
+    // Phasenübergänge.
+    aufKlick('btn-zu-vortrag', function () {
+      simWechsel('vortrag', SIM_VORTRAG_SEK);
+    });
+    aufKlick('btn-zu-gespraech', function () {
+      s.gespraechIndex = 0;
+      simWechsel('gespraech', SIM_GESPRAECH_SEK);
+    });
+    aufKlick('btn-zu-reflexion', function () {
+      timerStop();
+      s.phase = 'reflexion';
+      s.laeuft = false;
+      render();
+    });
+
+    // Vortrag: Erwartungsbild pro Teilaufgabe aufdecken.
+    aufKlickAlle('[data-aufdecken]', function (el) {
+      var i = parseInt(el.getAttribute('data-aufdecken'), 10);
+      if (!s.aufgedeckt) s.aufgedeckt = {};
+      s.aufgedeckt[i] = true;
+      render();
+    });
+
+    // Vortrag + Gespräch: Audio-Aufnahme an den Container binden.
+    var box = document.getElementById('audio-box');
+    if (box) aufnahmeControl(box);
+
+    // Gespräch: Frage aufdecken / nächste Frage.
+    aufKlick('btn-frage-aufdecken', function () {
+      var idx = Math.min(s.gespraechIndex || 0,
+        (s.gespraechFragen || []).length - 1);
+      if (!s.aufgedeckt) s.aufgedeckt = {};
+      s.aufgedeckt['g' + idx] = true;
+      render();
+    });
+    aufKlick('btn-naechste-frage', function () {
+      var fragen = s.gespraechFragen || [];
+      if ((s.gespraechIndex || 0) >= fragen.length - 1) {
+        timerStop();
+        s.phase = 'reflexion';
+        s.laeuft = false;
+      } else {
+        s.gespraechIndex = (s.gespraechIndex || 0) + 1;
+      }
+      render();
+    });
+
+    // Reflexion: Fehlertyp-Chips (toggle), Notiz, speichern.
+    aufKlickAlle('[data-sim-fehlertyp]', function (el) {
+      var id = el.getAttribute('data-sim-fehlertyp');
+      if (!s.fehlertypen) s.fehlertypen = {};
+      s.fehlertypen[id] = !s.fehlertypen[id];
+      render();
+    });
+    aufKlick('btn-reflexion-speichern', function () {
+      var feld = document.getElementById('sim-notiz');
+      s.notiz = feld ? String(feld.value || '').trim() : '';
+      var typen = SIM_FEHLERTYPEN
+        .filter(function (f) { return s.fehlertypen && s.fehlertypen[f.id]; })
+        .map(function (f) { return f.id; });
+      if (!state.reflexionen) state.reflexionen = [];
+      state.reflexionen.push({
+        ts: Date.now(),
+        art: 'simulator',
+        teil1Gebiet: s.teil1Gebiet,
+        teil2Gebiet: s.teil2Gebiet,
+        fehlertypen: typen,
+        notiz: s.notiz
+      });
+      speichereState(state);
+      s.reflexionGespeichert = true;
+      render();
     });
   }
 
@@ -1300,6 +1805,12 @@
     baueDiagnoseFragen: baueDiagnoseFragen,
     rechnenSortiert: rechnenSortiert,
     hashStr: hashStr,
+    // Simulator (Phase 8) — reine Logik:
+    formatZeit: formatZeit,
+    simulatorZiehen: simulatorZiehen,
+    empfehlungsThemen: empfehlungsThemen,
+    themenKeysFuerGebiet: themenKeysFuerGebiet,
+    waehleGespraechFragen: waehleGespraechFragen,
     // View-Builder liefern reines HTML (kein DOM nötig); Smoke-Test prüft,
     // dass sie ohne Wurf einen String liefern.
     viewStufe1: viewStufe1,
@@ -1307,6 +1818,7 @@
     viewStufe3: viewStufe3,
     viewFaellig: viewFaellig,
     viewDiagnose: viewDiagnose,
+    viewSimulator: viewSimulator,
     // Sitzung muss zwischen View-Aufrufen zurückgesetzt werden können.
     sitzungReset: function () { sitzung = null; }
   };

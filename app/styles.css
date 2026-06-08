@@ -484,6 +484,137 @@ a { color: var(--akzent-analysis); }
 .marke--sicher { background: var(--geometrie-bg); color: #2f5e1f; }
 .marke--luft   { background: #fff3cd; color: #6b4e00; }
 
+/* ---------- Prüfungs-Simulator (Phase 8) ---------------------------------- */
+
+/* Kopfleiste: Phase + Gebiets-Badge */
+.sim-leiste {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.sim-phase { font-weight: 700; color: var(--text-leise); }
+.sim-gebiet {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+}
+.sim-gebiet--analysis  { background: var(--akzent-analysis); }
+.sim-gebiet--geometrie { background: var(--akzent-geometrie); }
+
+.sim-hinweis { color: var(--text-leise); font-size: 0.95rem; }
+
+/* Countdown-Anzeige */
+.sim-timer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0 0 var(--abstand);
+  padding: 12px 16px;
+  border: 1px solid var(--rahmen);
+  border-radius: var(--radius);
+  background: var(--flaeche);
+  box-shadow: var(--schatten);
+}
+.sim-uhr {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.sim-timer--laeuft .sim-uhr { color: var(--akzent-analysis); }
+.sim-timer--aus { border-color: #f0d49a; background: #fff7e6; }
+.sim-timer--aus .sim-uhr { color: #6b4e00; }
+.sim-timer-hinweis { color: #6b4e00; font-weight: 600; font-size: 0.9rem; }
+
+/* Vortrags-Teilaufgaben (a/b/c/d) */
+.sim-teilaufgaben {
+  list-style: none;
+  margin: 0 0 var(--abstand);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  counter-reset: none;
+}
+.sim-teilaufgabe {
+  padding: 14px 16px;
+  border: 1px solid var(--rahmen);
+  border-radius: var(--radius);
+  background: var(--flaeche);
+  box-shadow: var(--schatten);
+}
+.sim-ta-kopf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.sim-ta-nr {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--akzent-analysis);
+}
+.afb-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--analysis-bg);
+  color: var(--akzent-analysis);
+}
+.afb-hinweis { margin: 8px 0 0; font-size: 0.85rem; color: var(--text-leise); }
+
+/* Reflexions-Notiz */
+.sim-notiz {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  font: inherit;
+  border: 1px solid var(--rahmen);
+  border-radius: var(--radius);
+  background: var(--flaeche);
+  color: var(--text);
+  margin: 0 0 12px;
+  resize: vertical;
+}
+.sim-notiz:focus { outline: 2px solid var(--akzent-analysis); outline-offset: 1px; }
+
+/* Empfehlungen mit Rücklinks */
+.sim-empf {
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--rahmen);
+  border-radius: var(--radius);
+  background: var(--flaeche);
+}
+.sim-empf--analysis  { border-left: 4px solid var(--akzent-analysis); }
+.sim-empf--geometrie { border-left: 4px solid var(--akzent-geometrie); }
+.sim-empf h3 { margin: 0 0 8px; font-size: 1rem; }
+.sim-empf-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sim-empf-zeile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+}
+.sim-empf-links { display: inline-flex; gap: 14px; flex-shrink: 0; }
+
 /* ---------- Ab Tablet: zwei Gebiets-Spalten nebeneinander ----------------- */
 @media (min-width: 700px) {
   .gebiete { grid-template-columns: 1fr 1fr; }
