@@ -1,0 +1,10 @@
+{
+  "name": "muendlich-abi-trainer",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "katex": "^0.16.9"
+  }
+}
