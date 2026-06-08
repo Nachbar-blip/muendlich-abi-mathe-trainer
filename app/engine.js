@@ -122,6 +122,54 @@
     return SCOPE_REGEX.test(text);
   }
 
+  // ---------------------------------------------------------------------------
+  // Task 4.1 / 4.2 — Persistenz (reine Serialisierung, Schema-Version)
+  // ---------------------------------------------------------------------------
+  // Reine Funktionen: KEINE DOM-/localStorage-Zugriffe. Das Lesen/Schreiben aus
+  // dem Browser-Storage wickelt spaeter ui.js duenn um diese Funktionen.
+
+  // Aktuelle Schema-Version des persistierten App-Zustands. Bei Aenderungen der
+  // State-Struktur hochzaehlen — alte Versionen fallen in deserialisiere() auf
+  // NEUER_STATE zurueck (bewusster Verlust statt Crash).
+  const SCHEMA_VERSION = 1;
+
+  function NEUER_STATE() {
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      srs: {},            // itemId -> SRS-Karte {intervall, ef, wiederholungen, faelligTag}
+      stufen: {},         // themaKey -> { "1": bool, "2": bool, "3": bool }
+      reflexionen: [],    // Liste von Reflexions-Objekten (Struktur offen; UI fuellt sie)
+      diagnoseGemacht: false,
+    };
+  }
+
+  function serialisiere(state) {
+    return JSON.stringify(state);
+  }
+
+  function deserialisiere(json) {
+    let geladen;
+    try {
+      geladen = JSON.parse(json);
+    } catch (e) {
+      return NEUER_STATE();
+    }
+
+    // Nur echte Objekte sind gueltige State-Container — null und Arrays nicht.
+    const istObjekt =
+      geladen !== null &&
+      typeof geladen === 'object' &&
+      !Array.isArray(geladen);
+    if (!istObjekt || geladen.schemaVersion !== SCHEMA_VERSION) {
+      return NEUER_STATE();
+    }
+
+    // Defensiver Merge: fehlende Top-Level-Keys aus frischem State ergaenzen,
+    // vorhandene Werte des geladenen States behalten. So crasht ein alter oder
+    // teilweiser State spaetere UI-Zugriffe nicht (z. B. state.srs[id]).
+    return Object.assign(NEUER_STATE(), geladen);
+  }
+
   return {
     NEUE_KARTE,
     naechsteWiederholung,
@@ -131,5 +179,8 @@
     zieheGebiet,
     verstoesstGegenGK,
     SCOPE_VERBOTE,
+    NEUER_STATE,
+    serialisiere,
+    deserialisiere,
   };
 });
