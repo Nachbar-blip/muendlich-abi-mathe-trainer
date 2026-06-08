@@ -6,5 +6,8 @@
   },
   "dependencies": {
     "katex": "^0.16.9"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0"
   }
 }
