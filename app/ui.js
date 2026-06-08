@@ -146,6 +146,15 @@
     return liste(name).filter(function (it) { return it && it.thema === key; });
   }
 
+  // Ein erklaeren-Item per id finden (fuer den eingefrorenen Fällig-/Stufe-3-Snapshot).
+  function erklaerItemById(id) {
+    var arr = liste('erklaeren');
+    for (var i = 0; i < arr.length; i++) {
+      if (arr[i] && arr[i].id === id) return arr[i];
+    }
+    return null;
+  }
+
   // rechnen-Items eines Themas, stabil nach level sortiert (gleiches level: Reihenfolge bleibt).
   function rechnenSortiert(key) {
     var items = itemsVon('rechnen', key).slice();
@@ -582,12 +591,12 @@
 
     var rueck = '';
     if (s.geprueft && s.korrekt) {
-      rueck = '<div class="rueckmeldung rueckmeldung--ok">Richtig sortiert! ' +
+      rueck = '<div role="status" class="rueckmeldung rueckmeldung--ok">Richtig sortiert! ' +
         'Stufe 1 geschafft.</div>' +
         '<div class="aktionen"><a class="btn btn-primaer" href="#/thema/' +
         esc(key) + '/2">Weiter zu Stufe 2 &rarr;</a></div>';
     } else if (s.geprueft) {
-      rueck = '<div class="rueckmeldung rueckmeldung--nope">Noch nicht ganz. ' +
+      rueck = '<div role="status" class="rueckmeldung rueckmeldung--nope">Noch nicht ganz. ' +
         'Sortiere die Schritte um und prüfe erneut.</div>';
     }
 
@@ -625,7 +634,7 @@
 
     if (s.fertig) {
       return trainerKopf('#/start', name + ' — Stufe 2: Rechnen', null) +
-        '<div class="rueckmeldung rueckmeldung--ok">Alle Aufgaben ' +
+        '<div role="status" class="rueckmeldung rueckmeldung--ok">Alle Aufgaben ' +
         'durchgearbeitet — Stufe 2 geschafft!</div>' +
         '<div class="aktionen"><a class="btn btn-primaer" href="#/thema/' +
         esc(key) + '/3">Weiter zu Stufe 3 &rarr;</a></div>';
@@ -665,9 +674,9 @@
     // Rückmeldung
     if (s.beantwortet) {
       if (s.korrekt) {
-        html += '<div class="rueckmeldung rueckmeldung--ok">Richtig!</div>';
+        html += '<div role="status" class="rueckmeldung rueckmeldung--ok">Richtig!</div>';
       } else {
-        html += '<div class="rueckmeldung rueckmeldung--nope">Leider nicht ' +
+        html += '<div role="status" class="rueckmeldung rueckmeldung--nope">Leider nicht ' +
           'richtig.</div>';
         // Fehlertyp-Reflexion (optional/überspringbar)
         if (!s.reflexionGesetzt) {
@@ -726,7 +735,7 @@
       signatur: signatur,
       leerText: 'Für dieses Thema sind keine Erklär-Aufgaben hinterlegt.',
       zurueck: '#/start',
-      abschlussHtml: '<div class="rueckmeldung rueckmeldung--ok">Stufe 3 ' +
+      abschlussHtml: '<div role="status" class="rueckmeldung rueckmeldung--ok">Stufe 3 ' +
         'geschafft! Die Karten kommen über „Heute fällig" zur Wiederholung.</div>' +
         '<div class="aktionen"><a class="btn btn-primaer" href="#/start">' +
         'Zurück zur Übersicht</a></div>',
@@ -740,22 +749,17 @@
 
   // === Heute fällig ========================================================
   function viewFaellig(state, signatur) {
-    var items = faelligeErklaerItems(state, heuteTag());
-    if (items.length === 0) {
-      return trainerKopf('#/start', 'Heute fällig', null) +
-        '<div class="platzhalter">Aktuell ist nichts fällig. Komm später ' +
-        'wieder oder arbeite ein Thema durch.</div>' +
-        '<div class="aktionen"><a class="btn btn-primaer" href="#/start">' +
-        'Zurück zur Übersicht</a></div>';
-    }
+    // items werden nur beim Sitzungsstart fuer den ID-Snapshot ausgewertet
+    // (erklaerFlow friert sie ein); spaetere Renders nutzen den Snapshot.
     return erklaerFlow({
       titel: 'Heute fällig',
       hinweis: 'Wiederhole die fälligen Erklärungen.',
-      items: items,
+      items: faelligeErklaerItems(state, heuteTag()),
       signatur: signatur,
-      leerText: '',
+      leerText: 'Aktuell ist nichts fällig. Komm später wieder oder arbeite ' +
+        'ein Thema durch.',
       zurueck: '#/start',
-      abschlussHtml: '<div class="rueckmeldung rueckmeldung--ok">Alle fälligen ' +
+      abschlussHtml: '<div role="status" class="rueckmeldung rueckmeldung--ok">Alle fälligen ' +
         'Karten wiederholt. Stark!</div>' +
         '<div class="aktionen"><a class="btn btn-primaer" href="#/start">' +
         'Zurück zur Übersicht</a></div>',
@@ -766,24 +770,36 @@
   // Gemeinsamer Erklär-/SRS-Flow (Stufe 3 + Heute fällig).
   // cfg.items: Liste erklaeren-Items. Selbsteinschätzung -> SRS. Optional Audio.
   function erklaerFlow(cfg) {
-    if (!cfg.items || cfg.items.length === 0) {
+    // Die durchzuarbeitende Liste wird beim Sitzungsstart als ID-Snapshot
+    // EINGEFROREN. Wichtig fuer "Heute fällig": dort schrumpft die live aus
+    // state.srs abgeleitete Liste mit jeder Bewertung — ohne Snapshot würde der
+    // lineare Index Karten überspringen.
+    var s = sitzungFuer(cfg.signatur, function () {
+      return {
+        index: 0, aufgedeckt: false, fertig: false,
+        ids: (cfg.items || []).map(function (it) { return it.id; })
+      };
+    });
+    var ids = s.ids || [];
+
+    if (ids.length === 0) {
       return trainerKopf(cfg.zurueck, cfg.titel, null) +
         '<div class="platzhalter">' + esc(cfg.leerText) + '</div>' +
         '<div class="aktionen"><a class="btn btn-primaer" href="#/start">' +
         'Zurück zur Übersicht</a></div>';
     }
 
-    var s = sitzungFuer(cfg.signatur, function () {
-      return { index: 0, aufgedeckt: false, fertig: false };
-    });
-
     if (s.fertig) {
       return trainerKopf(cfg.zurueck, cfg.titel, null) + cfg.abschlussHtml;
     }
 
-    var item = cfg.items[s.index];
+    var item = erklaerItemById(ids[s.index]);
+    if (!item) {
+      // Veralteter Snapshot (Item nicht mehr im Content) -> Flow abschliessen.
+      return trainerKopf(cfg.zurueck, cfg.titel, null) + cfg.abschlussHtml;
+    }
     var fort = '<span class="schritt-zahl">Karte ' + (s.index + 1) + ' / ' +
-      cfg.items.length + '</span>';
+      ids.length + '</span>';
 
     var html = trainerKopf(cfg.zurueck, cfg.titel, fort);
     html += '<p>' + esc(cfg.hinweis) + '</p>';
@@ -881,8 +897,8 @@
       }
       if (s.gewaehlt !== null) {
         html += s.korrekt
-          ? '<div class="rueckmeldung rueckmeldung--ok">Richtig!</div>'
-          : '<div class="rueckmeldung rueckmeldung--nope">Leider nicht.</div>';
+          ? '<div role="status" class="rueckmeldung rueckmeldung--ok">Richtig!</div>'
+          : '<div role="status" class="rueckmeldung rueckmeldung--nope">Leider nicht.</div>';
         html += '<div class="aktionen"><button type="button" ' +
           'class="btn btn-primaer" id="btn-weiter">Weiter</button></div>';
       }
@@ -1156,7 +1172,7 @@
       : '';
 
     return kopf +
-      '<div class="rueckmeldung rueckmeldung--ok">Prüfung abgeschlossen. ' +
+      '<div role="status" class="rueckmeldung rueckmeldung--ok">Prüfung abgeschlossen. ' +
       'Reflexion gespeichert.</div>' +
       fehlerText + notizText +
       '<h2>Empfehlungen zum Weiterüben</h2>' +
@@ -1381,8 +1397,7 @@
 
   // --- Stufe 3 (erklaeren + SRS) ---
   function bindeStufe3(state, key) {
-    var items = itemsVon('erklaeren', key);
-    bindeErklaerFlow(state, items, function () {
+    bindeErklaerFlow(state, function () {
       if (!state.stufen) state.stufen = {};
       if (!state.stufen[key]) state.stufen[key] = {};
       state.stufen[key]['3'] = true;
@@ -1391,21 +1406,21 @@
 
   // --- Heute fällig ---
   function bindeFaellig(state) {
-    var items = faelligeErklaerItems(state, heuteTag());
-    bindeErklaerFlow(state, items, null);
+    bindeErklaerFlow(state, null);
   }
 
   // Gemeinsame Handler-Bindung für den Erklär-/SRS-Flow.
-  function bindeErklaerFlow(state, items, onAbschluss) {
-    if (!sitzung || !items || items.length === 0) return;
-    var item = items[sitzung.index];
+  // Iteriert über den in der Sitzung EINGEFRORENEN ID-Snapshot (sitzung.ids) —
+  // nicht über eine live aus state.srs abgeleitete Liste (sonst Karten-Skip).
+  function bindeErklaerFlow(state, onAbschluss) {
+    if (!sitzung || !sitzung.ids || sitzung.ids.length === 0) return;
+    var ids = sitzung.ids;
+    var item = erklaerItemById(ids[sitzung.index]);
     if (!item) return;
 
     // Audio-Control an den Container binden (robust, optional).
-    if (sitzung.aufgedeckt === false || sitzung.aufgedeckt === true) {
-      var box = document.getElementById('audio-box');
-      if (box) aufnahmeControl(box);
-    }
+    var box = document.getElementById('audio-box');
+    if (box) aufnahmeControl(box);
 
     aufKlick('btn-aufdecken', function () {
       sitzung.aufgedeckt = true;
@@ -1415,7 +1430,7 @@
     aufKlickAlle('.bewertung [data-bewertung]', function (el) {
       var bewertung = el.getAttribute('data-bewertung');
       naechsteSrsKarte(state, item.id, bewertung, heuteTag());
-      if (sitzung.index >= items.length - 1) {
+      if (sitzung.index >= ids.length - 1) {
         sitzung.fertig = true;
         if (typeof onAbschluss === 'function') onAbschluss();
       } else {
@@ -1436,7 +1451,8 @@
     var item = f.item;
 
     function naechste(sicher) {
-      sitzung.ergebnisse.push({ key: f.thema.key, name: f.thema.name, sicher: sicher });
+      var th = f.thema || {};
+      sitzung.ergebnisse.push({ key: th.key || '', name: th.name || 'Thema', sicher: sicher });
       if (sitzung.index >= fragen.length - 1) {
         sitzung.fertig = true;
         state.diagnoseGemacht = true;
