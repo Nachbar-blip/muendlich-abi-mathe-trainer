@@ -1,0 +1,248 @@
+/* ===========================================================================
+   Mündlich-Abi Mathe — Trainer · Stylesheet
+   Mobil zuerst, responsiv. Kein externes Framework.
+   =========================================================================== */
+
+:root {
+  --akzent-analysis: #2E75B6;
+  --akzent-geometrie: #70AD47;
+
+  --analysis-bg: #E7F3FF;
+  --geometrie-bg: #E2F0D9;
+
+  --text: #1f2933;
+  --text-leise: #5b6770;
+  --rahmen: #d7dde3;
+  --flaeche: #ffffff;
+  --hintergrund: #f4f6f8;
+
+  --radius: 12px;
+  --schatten: 0 1px 3px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  --abstand: 16px;
+  --max-breite: 880px;
+
+  --touch: 48px; /* Mindesthöhe für Touch-Ziele */
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--hintergrund);
+}
+
+/* ---------- Kopfzeile ----------------------------------------------------- */
+.kopf {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--flaeche);
+  border-bottom: 1px solid var(--rahmen);
+  box-shadow: var(--schatten);
+}
+.kopf-titel {
+  display: block;
+  max-width: var(--max-breite);
+  margin: 0 auto;
+  padding: 14px var(--abstand);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+}
+
+/* ---------- App-Container -------------------------------------------------- */
+#app {
+  max-width: var(--max-breite);
+  margin: 0 auto;
+  padding: var(--abstand);
+}
+
+h1 { font-size: 1.5rem; margin: 0 0 0.2em; }
+h2 { font-size: 1.2rem; margin: 0 0 0.4em; }
+p  { margin: 0 0 0.8em; }
+
+a { color: var(--akzent-analysis); }
+
+/* ---------- Hinweis / Warnung (z. B. Storage-Fallback) -------------------- */
+.hinweis {
+  margin: 0 0 var(--abstand);
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: #fff7e6;
+  border: 1px solid #f0d49a;
+  color: #6b4e00;
+  font-size: 0.92rem;
+}
+.fehler {
+  background: #fdecea;
+  border-color: #f3b6b0;
+  color: #7a1f17;
+}
+
+/* ---------- Buttons / Aktionsleiste --------------------------------------- */
+.aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: var(--abstand) 0;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--touch);
+  padding: 0 18px;
+  border: 1px solid var(--rahmen);
+  border-radius: var(--radius);
+  background: var(--flaeche);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: var(--schatten);
+  transition: transform 0.05s ease, background 0.15s ease;
+}
+.btn:hover { background: #fafbfc; }
+.btn:active { transform: translateY(1px); }
+
+.btn-primaer {
+  background: var(--akzent-analysis);
+  border-color: var(--akzent-analysis);
+  color: #fff;
+}
+.btn-primaer:hover { background: #2766a0; }
+
+.btn-hervor {
+  background: #fff3cd;
+  border-color: #f0d49a;
+  color: #6b4e00;
+}
+
+/* Versteckter Datei-Input für „Laden" */
+.datei-input { display: none; }
+
+/* ---------- Startbildschirm: Gebiets-Sektionen ---------------------------- */
+.gebiete {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--abstand);
+}
+
+.gebiet {
+  border-radius: var(--radius);
+  padding: 16px;
+  border: 1px solid var(--rahmen);
+  background: var(--flaeche);
+}
+.gebiet--analysis {
+  border-top: 4px solid var(--akzent-analysis);
+  background: linear-gradient(var(--analysis-bg), var(--flaeche) 60px);
+}
+.gebiet--geometrie {
+  border-top: 4px solid var(--akzent-geometrie);
+  background: linear-gradient(var(--geometrie-bg), var(--flaeche) 60px);
+}
+.gebiet h2 { display: flex; align-items: center; gap: 8px; }
+.gebiet--analysis h2  { color: var(--akzent-analysis); }
+.gebiet--geometrie h2 { color: var(--akzent-geometrie); }
+
+/* ---------- Themenliste ---------------------------------------------------- */
+.themen-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.themen-liste .leer {
+  color: var(--text-leise);
+  font-style: italic;
+  padding: 8px 2px;
+}
+
+.thema {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--touch);
+  padding: 10px 14px;
+  border: 1px solid var(--rahmen);
+  border-radius: var(--radius);
+  background: var(--flaeche);
+  color: var(--text);
+  text-decoration: none;
+  box-shadow: var(--schatten);
+}
+.thema:hover { background: #fafbfc; }
+.thema-name { font-weight: 600; }
+
+/* Stufen-Marker 1/2/3 */
+.stufen {
+  display: inline-flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.stufe {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 2px solid var(--rahmen);
+  color: var(--text-leise);
+  background: var(--flaeche);
+}
+.stufe--erledigt {
+  color: #fff;
+  border-color: transparent;
+}
+.gebiet--analysis  .stufe--erledigt { background: var(--akzent-analysis); }
+.gebiet--geometrie .stufe--erledigt { background: var(--akzent-geometrie); }
+
+/* ---------- Stub-Views ----------------------------------------------------- */
+.zurueck {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--abstand);
+  font-weight: 600;
+  text-decoration: none;
+}
+.platzhalter {
+  padding: 24px;
+  border: 1px dashed var(--rahmen);
+  border-radius: var(--radius);
+  background: var(--flaeche);
+  color: var(--text-leise);
+  text-align: center;
+}
+
+.karte {
+  padding: 16px;
+  border: 1px solid var(--rahmen);
+  border-radius: var(--radius);
+  background: var(--flaeche);
+  box-shadow: var(--schatten);
+  margin-bottom: var(--abstand);
+}
+
+/* ---------- Ab Tablet: zwei Gebiets-Spalten nebeneinander ----------------- */
+@media (min-width: 700px) {
+  .gebiete { grid-template-columns: 1fr 1fr; }
+}
