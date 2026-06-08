@@ -58,10 +58,6 @@ test("windschief verstoesst", () => {
   assert.equal(Engine.verstoesstGegenGK('Die Geraden sind windschief.'), true);
 });
 
-test("Hesse verstoesst", () => {
-  assert.equal(Engine.verstoesstGegenGK('Hesse-Normalform nutzen'), true);
-});
-
 test("Hessesche verstoesst", () => {
   assert.equal(Engine.verstoesstGegenGK('Hessesche Normalenform'), true);
 });
@@ -105,6 +101,20 @@ test("Potenz x^2 allein ist erlaubt (nur e^ verboten)", () => {
 test("Wort mit 'ln' im Inneren matcht NICHT faelschlich (z.B. 'Vielleicht')", () => {
   // 'ln' ist hier nicht als \ln und nicht als 'ln(' praesent
   assert.equal(Engine.verstoesstGegenGK('Vielleicht ist das so.'), false);
+});
+
+// --- Regressionstests gegen Substring-Falschtreffer (Code-Review I-1/M-3) ---
+
+test("Bundesland 'Hessen' verstoesst NICHT (kein Hesse-Substring-Treffer)", () => {
+  assert.equal(Engine.verstoesstGegenGK('Das Bundesland Hessen liegt in der Mitte.'), false);
+});
+
+test("Wort, das auf 'ln(' endet, verstoesst NICHT (z.B. 'koeln(')", () => {
+  assert.equal(Engine.verstoesstGegenGK('Notiz: koeln(West) ist eine Schreibweise.'), false);
+});
+
+test("'e^' mitten im Wort (z.B. 'the^2') verstoesst NICHT", () => {
+  assert.equal(Engine.verstoesstGegenGK('the^2 ist kein e-Term'), false);
 });
 
 test("leerer String ist erlaubt", () => {

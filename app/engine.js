@@ -30,7 +30,10 @@
     let wiederholungen = karte.wiederholungen;
     let intervall = karte.intervall;
 
-    // Easiness-Faktor neu berechnen (SM-2), Untergrenze 1.3
+    // Easiness-Faktor neu berechnen (SM-2), Untergrenze 1.3.
+    // Bewusst: EF wird AUCH bei 'wiederholen' (q<3) gesenkt — naeher am echten
+    // SM-2 als der Plan (dort nur im Erfolgszweig). Schwere Karten kommen so
+    // dauerhaft haeufiger; gewollt. Test in engine.srs.test.js nagelt das fest.
     let ef = karte.ef + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
     if (ef < 1.3) ef = 1.3;
 
@@ -58,7 +61,9 @@
   }
 
   function faellig(karte, heuteTag) {
-    return karte.faelligTag <= heuteTag;
+    // Defensiver Default: eine Karte ohne faelligTag (z. B. aus altem/kaputtem
+    // localStorage) gilt als sofort faellig statt stillschweigend verschluckt.
+    return (karte.faelligTag ?? 0) <= heuteTag;
   }
 
   // ---------------------------------------------------------------------------
@@ -87,17 +92,19 @@
   // ---------------------------------------------------------------------------
   // WICHTIG: Diese Liste muss STRING-IDENTISCH zu scope_verbote.json sein
   // (Single Source der Verbotsmuster; ein Python-Test prueft die Gleichheit).
+  // Wortgrenzen/Lookbehinds verhindern Substring-Falschtreffer (z. B. "Hessen",
+  // "...koeln(", "the^2"). Muster sind bewusst spezifisch fuer GK-Verbote.
   const SCOPE_VERBOTE = [
-    'f_[a-z]\\(',
-    'f_\\{[a-z]\\}',
-    'e\\^',
-    '\\\\ln',
-    'ln\\(',
+    'f_[a-z]\\(',                 // Funktionsschar f_a(...), f_k(...)
+    'f_\\{[a-z]\\}',              // LaTeX-Schar f_{a}
+    '(?<![a-zäöüß])e\\^',         // e-Funktion e^... (nicht mitten im Wort)
+    '\\\\ln',                     // LaTeX \ln
+    '(?<![a-zäöüß])ln\\(',        // ln( (nicht als Wortende wie "koeln(")
     'Kettenregel',
     'Quotientenregel',
     'windschief',
-    'Hesse',
-    'HNF',
+    'Hessesch',                   // Hessesche (Normalform) — nicht "Hessen"
+    '\\bHNF\\b',                  // Hessesche Normalform (Abk.)
     'normalverteilt',
     'Normalverteilung',
     'Signifikanz',
@@ -106,6 +113,8 @@
   ];
 
   // Aus der Verbotsliste eine kombinierte, case-insensitive RegExp bauen.
+  // Liste einfrieren: Single-Source-Konstante darf zur Laufzeit nicht mutieren.
+  Object.freeze(SCOPE_VERBOTE);
   const SCOPE_REGEX = new RegExp(SCOPE_VERBOTE.join('|'), 'i');
 
   function verstoesstGegenGK(text) {

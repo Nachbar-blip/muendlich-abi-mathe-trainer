@@ -88,3 +88,22 @@ test('heuteTag default 0', () => {
   k = Engine.naechsteWiederholung(k, 'gut');
   assert.equal(k.faelligTag, 1);
 });
+
+// --- Code-Review I-2: EF sinkt bewusst auch bei 'wiederholen' ---
+
+test("'wiederholen' (q=2) senkt den EF unter den Startwert 2.5 (bewusst, SM-2)", () => {
+  let k = Engine.NEUE_KARTE();
+  k = Engine.naechsteWiederholung(k, 'wiederholen', 0);
+  assert.ok(k.ef < 2.5, `ef sollte < 2.5 sein (gesenkt), war ${k.ef}`);
+  assert.ok(Math.abs(k.ef - 2.18) < 1e-9, `erwartet ~2.18, war ${k.ef}`);
+});
+
+// --- Code-Review M-5: mittlere Stufe 'schwer' (q=3) ---
+
+test("'schwer' (q=3) zaehlt als Erfolg (intervall 1) und senkt EF leicht", () => {
+  let k = Engine.NEUE_KARTE();
+  k = Engine.naechsteWiederholung(k, 'schwer', 0);
+  assert.equal(k.wiederholungen, 1);
+  assert.equal(k.intervall, 1);
+  assert.ok(Math.abs(k.ef - 2.36) < 1e-9, `erwartet ~2.36, war ${k.ef}`);
+});
