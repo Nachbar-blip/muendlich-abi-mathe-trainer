@@ -1181,6 +1181,48 @@ const CONTENT = {
         "expr": "Matrix([-2,0,4]).norm()"
       },
       "thema": "geo-dreieck"
+    },
+    {
+      "id": "ana-extrema-r7",
+      "thema": "ana-extrema",
+      "level": 2,
+      "typ": "numerisch",
+      "frage": "Gegeben ist \\(f(x)=x^3-6x^2+9x\\). Berechnen Sie den Wert der zweiten Ableitung an der Stelle \\(x_0=3\\), also \\(f''(3)\\).",
+      "tipp": "Leite zweimal ab und setze \\(x_0=3\\) ein.",
+      "loesungsweg": "\\(f'(x)=3x^2-12x+9\\), \\(f''(x)=6x-12\\). \\(f''(3)=6\\cdot 3-12=6\\).",
+      "loesung": 6,
+      "check": {
+        "art": "ausdruck",
+        "expr": "diff(x**3-6*x**2+9*x, x, 2).subs(x, 3)"
+      }
+    },
+    {
+      "id": "geo-vektoren-r7",
+      "thema": "geo-vektoren",
+      "level": 2,
+      "typ": "numerisch",
+      "frage": "Gegeben sind die Punkte \\(A(1|2|2)\\) und \\(B(4|6|2)\\). Berechnen Sie die Länge des Vektors \\(\\vec{AB}\\).",
+      "tipp": "Bilde den Verbindungsvektor \\(\\vec{AB}=\\vec{OB}-\\vec{OA}\\) und dann seinen Betrag.",
+      "loesungsweg": "\\(\\vec{AB}=\\begin{pmatrix}3\\\\4\\\\0\\end{pmatrix}\\), \\(|\\vec{AB}|=\\sqrt{3^2+4^2+0^2}=\\sqrt{25}=5\\).",
+      "loesung": 5,
+      "check": {
+        "art": "ausdruck",
+        "expr": "sqrt(3**2+4**2+0**2)"
+      }
+    },
+    {
+      "id": "ana-integral-r7",
+      "thema": "ana-integral",
+      "level": 2,
+      "typ": "numerisch",
+      "frage": "Berechnen Sie das bestimmte Integral \\(\\int_{0}^{2} 3x^2\\,dx\\).",
+      "tipp": "Bilde eine Stammfunktion und setze die Grenzen ein.",
+      "loesungsweg": "Eine Stammfunktion ist \\(x^3\\). \\(\\int_{0}^{2}3x^2\\,dx=[x^3]_0^2=8-0=8\\).",
+      "loesung": 8,
+      "check": {
+        "art": "ausdruck",
+        "expr": "integrate(3*x**2,(x,0,2))"
+      }
     }
   ],
   "erklaeren": [
