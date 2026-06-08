@@ -61,5 +61,13 @@
     return karte.faelligTag <= heuteTag;
   }
 
-  return { NEUE_KARTE, naechsteWiederholung, faellig };
+  // ---------------------------------------------------------------------------
+  // Task 1.2 — Tageszaehler
+  // ---------------------------------------------------------------------------
+
+  function tagNummer(ms) {
+    return Math.floor(ms / 86400000);
+  }
+
+  return { NEUE_KARTE, naechsteWiederholung, faellig, tagNummer };
 });
