@@ -69,5 +69,18 @@
     return Math.floor(ms / 86400000);
   }
 
-  return { NEUE_KARTE, naechsteWiederholung, faellig, tagNummer };
+  // ---------------------------------------------------------------------------
+  // Task 1.3 — Gebiets-Paarung (Simulator)
+  // ---------------------------------------------------------------------------
+
+  function paarung(teil1Gebiet) {
+    const teil2 = teil1Gebiet === 'analysis' ? 'geometrie' : 'analysis';
+    return { teil1: teil1Gebiet, teil2 };
+  }
+
+  function zieheGebiet(r) {
+    return r < 0.5 ? 'analysis' : 'geometrie';
+  }
+
+  return { NEUE_KARTE, naechsteWiederholung, faellig, tagNummer, paarung, zieheGebiet };
 });
