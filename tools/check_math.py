@@ -3,9 +3,11 @@
 Ein Item kann ein Feld "check" tragen, das die Loesung unabhaengig per sympy
 nachrechnet. Drei art-Werte werden unterstuetzt (klar dispatcht, erweiterbar):
 
-  {"art":"ausdruck","expr":"<sympy>"}
-      -> sympify(expr); Vergleich mit item["loesung"].
-         Toleranz aus item.get("toleranz", 0). Bei 0 -> exakt/symbolisch.
+  {"art":"ausdruck","expr":"<sympy>", ["erwartet":<wert>]}
+      -> sympify(expr); Vergleich mit check["erwartet"] falls vorhanden, sonst
+         mit item["loesung"]. ("erwartet" ist fuer mc-Items ohne eigene loesung,
+         z.B. Symmetrie-Identitaet ==0 oder Flaechenwert.)
+         Toleranz aus item.get("toleranz", 0). Bei 0 -> exakt/symbolisch (1e-9-Reserve).
 
   {"art":"menge","gleichung":"<expr>","var":"x","erwartet":[...]}
       -> reelle Loesungen von expr == 0; Menge muss erwartet entsprechen.
@@ -65,16 +67,23 @@ def pruefe_item(item):
 
 
 def _pruefe_ausdruck(item, check):
-    if "loesung" not in item:
-        return False, "art=ausdruck erfordert Feld 'loesung'."
+    # Vergleichswert: bevorzugt check["erwartet"] (fuer mc-Items ohne eigene
+    # loesung, z.B. Symmetrie-Identitaet == 0 oder Flaechenwert), sonst die
+    # numerische loesung des Items.
+    if "erwartet" in check:
+        ziel = check["erwartet"]
+    elif "loesung" in item:
+        ziel = item["loesung"]
+    else:
+        return False, "art=ausdruck erfordert 'loesung' (Item) oder 'erwartet' (check)."
     try:
         wert = _sympify(check["expr"])
     except (SympifyError, SyntaxError, TypeError, ValueError) as e:
         return False, f"expr nicht auswertbar: {e}"
     try:
-        soll = _sympify(item["loesung"])
+        soll = _sympify(ziel)
     except (SympifyError, SyntaxError, TypeError, ValueError) as e:
-        return False, f"loesung nicht auswertbar: {e}"
+        return False, f"Vergleichswert nicht auswertbar: {e}"
 
     toleranz = item.get("toleranz", 0)
     if toleranz:

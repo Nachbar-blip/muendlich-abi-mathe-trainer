@@ -105,6 +105,21 @@ def test_art_ausdruck_erkennt_abweichung():
     assert not ok and grund
 
 
+def test_art_ausdruck_erwartet_ohne_loesung():
+    # mc-Item ohne eigene loesung: check.erwartet liefert den Vergleichswert.
+    # Bsp: Symmetrie-Identitaet f(-3)+f(3) == 0 (Punktsymmetrie).
+    item = {"check": {"art": "ausdruck",
+                      "expr": "2*(-3)**3 - 5*(-3) + (2*3**3 - 5*3)", "erwartet": 0}}
+    ok, grund = pruefe_item(item)
+    assert ok, grund
+
+
+def test_art_ausdruck_erwartet_erkennt_abweichung():
+    item = {"check": {"art": "ausdruck", "expr": "2 + 3", "erwartet": 6}}
+    ok, grund = pruefe_item(item)
+    assert not ok and grund
+
+
 def test_art_vektor_kreuzprodukt():
     # Kreuzprodukt (1,0,0) x (0,1,0) = (0,0,1).
     item = {
