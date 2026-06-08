@@ -481,13 +481,19 @@
       if (!sitzung || !sitzung.laeuft) return;
       if (sitzung.rest > 0) {
         sitzung.rest -= 1;
-        // Bei Ablauf den Timer anhalten (kein Hard-Stop der Phase) und neu
-        // rendern, damit der dezente Hinweis erscheint.
         if (sitzung.rest === 0) {
+          // Ablauf: Timer anhalten (kein Hard-Stop der Phase) und EINMAL neu
+          // rendern, damit der dezente Hinweis + Button-Status erscheint.
           sitzung.laeuft = false;
           timerStop();
+          render();
+          return;
         }
-        render();
+        // Normaler Tick: NUR die Uhr-Anzeige aktualisieren — KEIN voller
+        // render(), sonst Fokusverlust/Flicker und Abbruch einer laufenden
+        // Audio-Aufnahme jede Sekunde.
+        var uhr = document.querySelector('.sim-uhr');
+        if (uhr) uhr.textContent = formatZeit(sitzung.rest);
       }
     }, 1000);
   }
