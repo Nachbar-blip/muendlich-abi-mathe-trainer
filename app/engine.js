@@ -82,5 +82,45 @@
     return r < 0.5 ? 'analysis' : 'geometrie';
   }
 
-  return { NEUE_KARTE, naechsteWiederholung, faellig, tagNummer, paarung, zieheGebiet };
+  // ---------------------------------------------------------------------------
+  // Task 1.4 — GK-Scope-Guard
+  // ---------------------------------------------------------------------------
+  // WICHTIG: Diese Liste muss STRING-IDENTISCH zu scope_verbote.json sein
+  // (Single Source der Verbotsmuster; ein Python-Test prueft die Gleichheit).
+  const SCOPE_VERBOTE = [
+    'f_[a-z]\\(',
+    'f_\\{[a-z]\\}',
+    'e\\^',
+    '\\\\ln',
+    'ln\\(',
+    'Kettenregel',
+    'Quotientenregel',
+    'windschief',
+    'Hesse',
+    'HNF',
+    'normalverteilt',
+    'Normalverteilung',
+    'Signifikanz',
+    'Hypothesentest',
+    'Binomialverteilung',
+  ];
+
+  // Aus der Verbotsliste eine kombinierte, case-insensitive RegExp bauen.
+  const SCOPE_REGEX = new RegExp(SCOPE_VERBOTE.join('|'), 'i');
+
+  function verstoesstGegenGK(text) {
+    if (typeof text !== 'string' || text.length === 0) return false;
+    return SCOPE_REGEX.test(text);
+  }
+
+  return {
+    NEUE_KARTE,
+    naechsteWiederholung,
+    faellig,
+    tagNummer,
+    paarung,
+    zieheGebiet,
+    verstoesstGegenGK,
+    SCOPE_VERBOTE,
+  };
 });

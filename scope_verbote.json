@@ -1,0 +1,19 @@
+{
+  "verbote": [
+    "f_[a-z]\\(",
+    "f_\\{[a-z]\\}",
+    "e\\^",
+    "\\\\ln",
+    "ln\\(",
+    "Kettenregel",
+    "Quotientenregel",
+    "windschief",
+    "Hesse",
+    "HNF",
+    "normalverteilt",
+    "Normalverteilung",
+    "Signifikanz",
+    "Hypothesentest",
+    "Binomialverteilung"
+  ]
+}
